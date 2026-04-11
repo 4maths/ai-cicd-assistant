@@ -1,0 +1,71 @@
+pipeline {
+    agent {
+        docker { image 'python:3.10' }
+    }
+    
+    environment {
+        GROQ_API_KEY = credentials('groq-api-key')
+        GITHUB_TOKEN = credentials('github-token-secret')
+        // Assume this Jenkins job is triggered by a Github Pull Request builder
+        // which provides env.CHANGE_ID (the PR number)
+    }
+
+    stages {
+        stage('Setup') {
+            steps {
+                sh 'pip install aicicd'
+            }
+        }
+        
+        stage('AI PR Review & Security Scan') {
+            when {
+                expression { env.CHANGE_ID != null }
+            }
+            steps {
+                script {
+                    def repoPath = "my-org/my-project" // Replace with dynamic env variable if configured
+                    def prNumber = env.CHANGE_ID
+                    
+                    try {
+                        // 1. Fetch
+                        sh "aicicd fetch --source github --repo ${repoPath} --pr ${prNumber} --out-dir ./payload"
+                        
+                        // 2. Process
+                        sh "aicicd pr-review --input ./payload/diff.txt --format markdown --output review.md"
+                        sh "aicicd security-scan --input ./payload/diff.txt --format markdown --output security.md"
+                        
+                        // 3. Publish to PR Console/Jenkins Console
+                        sh "aicicd publish --platform stdout --file review.md"
+                        sh "aicicd publish --platform stdout --file security.md" // Print to console
+                        
+                        // Optionally publish directly logic back to GitHub
+                        sh "aicicd publish --platform github --repo ${repoPath} --pr ${prNumber} --file review.md"
+                        
+                    } catch (Exception e) {
+                        echo "AI Assistant encountered an error: ${e}"
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy & Guard') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh 'echo "Deploying to production..."'
+                // Fake deployment script
+                
+                // Deploy Guard AI Check
+                script {
+                    def status = sh(script: "aicicd deploy-guard --url 'https://my-prod-service.com/health' --max-latency-ms 2000 --format markdown --output deploy.md", returnStatus: true)
+                    sh "aicicd publish --platform stdout --file deploy.md"
+                    
+                    if (status != 0) {
+                        error('Deploy Guard detected anomaly! Halting/Rollback.')
+                    }
+                }
+            }
+        }
+    }
+}

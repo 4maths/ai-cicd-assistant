@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aicicd"
+version = "0.1.0"
+description = "AI-powered CI/CD Assistant"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "requests",
+    "PyYAML",
+    "PyGithub",
+    "python-gitlab",
+    "groq",
+    "openai"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-mock"
+]
+
+[project.scripts]
+aicicd = "aicicd.cli:main"

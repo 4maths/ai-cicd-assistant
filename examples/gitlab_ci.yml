@@ -1,0 +1,44 @@
+stages:
+  - test
+  - ai_review
+
+variables:
+  GITLAB_URL: "https://gitlab.example.com"
+
+# Example Job to run AI PR Review & Security Scan on Merge Requests
+ai_assistant_mr_review:
+  stage: ai_review
+  image: python:3.10
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - pip install aicicd  # Or path to your wheel/repo -> pip install .
+  script:
+    # 1. Fetch
+    - aicicd fetch --source gitlab --repo "$CI_PROJECT_PATH" --pr "$CI_MERGE_REQUEST_IID" --out-dir ./payload
+    # 2. Process
+    - aicicd pr-review --input ./payload/diff.txt --format markdown --output review.md
+    - aicicd security-scan --input ./payload/diff.txt --format markdown --output security.md
+    # 3. Publish
+    - aicicd publish --platform gitlab --repo "$CI_PROJECT_PATH" --pr "$CI_MERGE_REQUEST_IID" --file review.md
+    - aicicd publish --platform gitlab --repo "$CI_PROJECT_PATH" --pr "$CI_MERGE_REQUEST_IID" --file security.md
+
+# Example Job to analyze failed pipelines or tests
+ai_log_analyzer:
+  stage: test
+  image: python:3.10
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - echo "Running some unit tests that might fail..."
+    - make test
+  after_script:
+    - >
+      if [ $CI_JOB_STATUS == 'failed' ]; then
+        echo "Job failed, triggering AI Log Analysis..."
+        pip install aicicd
+        # Notice we assume you can fetch job logs to a file failed_log.txt 
+        # (This usually requires a script using GitLab API, or you feed the local test output into a file)
+        # aicicd log-analysis --log-file failed_log.txt --format markdown --output ai_log_report.md
+        # aicicd publish --platform gitlab --repo "$CI_PROJECT_PATH" --pr "$CI_MERGE_REQUEST_IID" --file ai_log_report.md
+      fi

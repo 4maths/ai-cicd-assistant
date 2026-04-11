@@ -1,0 +1,71 @@
+name: AI CI/CD Assistant
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Command to run (pr-review, security-scan)'
+        required: true
+        default: 'pr-review'
+
+jobs:
+  ai-assistant:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # Required to post comments
+      issues: write
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install aicicd tool
+        # In a real environment, you might pip install from your package registry.
+        # Here we install it directly from the repo source.
+        run: pip install .
+
+      - name: Context Environment Variables
+        run: |
+          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          echo "REPO_NAME=${{ github.repository }}" >> $GITHUB_ENV
+
+      - name: Fetch PR Diff
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          aicicd fetch --source github --repo ${{ env.REPO_NAME }} --pr ${{ env.PR_NUMBER }} --out-dir ./payload
+
+      - name: AI PR Review
+        if: github.event_name == 'pull_request'
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }} 
+        run: |
+          aicicd pr-review --input ./payload/diff.txt --format markdown --output review.md
+
+      - name: AI Security Scan
+        if: github.event_name == 'pull_request'
+        run: |
+          aicicd security-scan --input ./payload/diff.txt --format markdown --output security.md
+
+      - name: Publish PR Review to GitHub
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          aicicd publish --platform github --repo ${{ env.REPO_NAME }} --pr ${{ env.PR_NUMBER }} --file review.md
+
+      - name: Publish Security Scan to GitHub
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          aicicd publish --platform github --repo ${{ env.REPO_NAME }} --pr ${{ env.PR_NUMBER }} --file security.md
