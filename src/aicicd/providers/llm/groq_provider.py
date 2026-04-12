@@ -15,7 +15,7 @@ class GroqProvider(LLMProvider):
             raise ValueError("GROQ_API_KEY is required")
 
         self.endpoint = "https://api.groq.com/openai/v1/chat/completions"
-        self.model = "llama3-70b-8192"
+        self.model = "llama-3.3-70b-versatile"
 
     def complete(self, prompt: str, max_tokens: int = 2000) -> str:
         headers = {
