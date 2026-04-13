@@ -4,7 +4,11 @@ import argparse
 import sys
 import json
 import os
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 from aicicd.domain.enums import ToolName, OutputFormat
 from aicicd.domain.results import BaseResult
@@ -95,12 +99,34 @@ def handle_pr_review(args) -> BaseResult:
 
 
 def handle_security_scan(args) -> BaseResult:
+    from aicicd.domain.enums import Decision
     diff_text = read_file(args.input)
-    return run_security_scan(
+    result = run_security_scan(
         diff_text=diff_text,
-        rules_path=args.rules,
+        provider=args.provider,
+        prompt_path=args.prompt,
         paths_path=args.paths,
     )
+    
+    # Logic Bypass bằng Labels
+    if args.metadata and Path(args.metadata).exists():
+        try:
+            meta = json.loads(Path(args.metadata).read_text(encoding="utf-8"))
+            labels = meta.get("labels", [])
+            bypass_labels = ["security-bypass", "accepted-risk", "bypass-security"]
+            
+            found_label = next((l for l in labels if l.lower() in bypass_labels), None)
+            
+            if found_label and result.decision == Decision.BLOCK:
+                result.decision = Decision.WARN
+                result.is_bypassed = True
+                result.bypass_label = found_label
+                result.summary = f"⚠️ [BYPASSED] {result.summary} (Chấp nhận rủi ro qua label: {found_label})"
+                logger.info(f"Security scan blocked but bypassed by label: {found_label}")
+        except Exception as e:
+            logger.error(f"Lỗi khi xử lý metadata cho bypass logic: {e}")
+
+    return result
 
 
 def handle_log_analysis(args) -> BaseResult:
@@ -111,9 +137,9 @@ def handle_log_analysis(args) -> BaseResult:
 def handle_deploy_guard(args) -> BaseResult:
     return run_deploy_guard(
         url=args.url,
+        provider=args.provider,
+        prompt_path=args.prompt,
         timeout=args.timeout,
-        max_latency_ms=args.max_latency_ms,
-        expect_text=args.expect_text,
     )
 
 # =========================
@@ -147,8 +173,10 @@ def build_parser() -> argparse.ArgumentParser:
     # -------- SECURITY SCAN --------
     sec_parser = subparsers.add_parser(ToolName.SECURITY_SCAN.value)
     sec_parser.add_argument("--input", required=True)
-    sec_parser.add_argument("--rules", default="config/security_rules.yml")
+    sec_parser.add_argument("--provider", default="groq")
+    sec_parser.add_argument("--prompt", default="config/prompts/security_scan_prompt.md")
     sec_parser.add_argument("--paths", default="config/security_paths.yml")
+    sec_parser.add_argument("--metadata", help="Path to metadata.json for label checking")
     sec_parser.add_argument("--format", default="json")
     sec_parser.add_argument("--output")
 
@@ -162,9 +190,9 @@ def build_parser() -> argparse.ArgumentParser:
     # -------- DEPLOY GUARD --------
     dg_parser = subparsers.add_parser(ToolName.DEPLOY_GUARD.value)
     dg_parser.add_argument("--url", required=True)
-    dg_parser.add_argument("--timeout", type=int, default=5)
-    dg_parser.add_argument("--max-latency-ms", type=int, default=1000)
-    dg_parser.add_argument("--expect-text", default="")
+    dg_parser.add_argument("--provider", default="groq")
+    dg_parser.add_argument("--prompt", default="config/prompts/deploy_guard_prompt.md")
+    dg_parser.add_argument("--timeout", type=int, default=10)
     dg_parser.add_argument("--format", default="json")
     dg_parser.add_argument("--output")
 

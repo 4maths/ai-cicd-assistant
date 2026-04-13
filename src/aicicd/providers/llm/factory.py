@@ -34,4 +34,5 @@ def get_provider(name: str) -> LLMProvider:
 # =========================
 class MockProvider(LLMProvider):
     def complete(self, prompt: str, max_tokens: int = 2000) -> str:
-        return '{"summary": "mock response", "decision": "APPROVE"}'
+        # Trả về kết quả BLOCK để test tính năng bypass
+        return '{"summary": "found high severity issues", "decision": "BLOCK", "findings": [{"severity": "HIGH", "title": "SQLi"}]}'

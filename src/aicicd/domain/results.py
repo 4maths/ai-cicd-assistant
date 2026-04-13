@@ -58,6 +58,8 @@ class SecurityScanResult(BaseResult):
     low_count: int = 0
 
     has_blocking_issues: bool = False
+    is_bypassed: bool = False
+    bypass_label: Optional[str] = None
 
 
 # =========================
