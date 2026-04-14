@@ -10,54 +10,24 @@ logger = logging.getLogger(__name__)
 
 
 def build_review_prompt(diff: str) -> str:
-    return f"""Bạn là một senior DevOps engineer và security-minded code reviewer với nhiều năm kinh nghiệm review code trong môi trường production.
-
-Nhiệm vụ:
-Hãy phân tích code diff dưới đây như một reviewer thực tế và khó tính.
-Chỉ đưa ra nhận xét dựa trên bằng chứng xuất hiện trong diff.
-Không tự đoán mò.
-Trả về kết quả chính xác theo định dạng JSON.
-Không được khen xã giao.
-Không được nói chung chung.
+    return f"""Bạn là Senior Code Reviewer. Hãy phân tích code diff sau và trả về kết quả dưới dạng JSON.
+Chỉ nhận xét những lỗi thực sự (bug, security, code quality). 
 
 Code diff:
 {diff}
 
-Mục tiêu review:
-1. Tìm bug hoặc logic error có khả năng gây sai chức năng
-2. Tìm edge case chưa được xử lý
-3. Tìm rủi ro bảo mật hoặc lỗ hổng liên quan đến secret, token, input validation, exception handling
-4. Đánh giá chất lượng code: naming, readability, duplication, maintainability, structure
-5. Tìm thay đổi có thể gây vỡ backward compatibility, gây tác dụng phụ hoặc làm sai hành vi mong đợi
-6. Đưa ra đề xuất sửa cụ thể, ưu tiên đề xuất có thể áp dụng ngay
-
-Các nguyên tắc bắt buộc:
-- Chỉ đánh giá dựa trên diff được cung cấp
-- Nếu không đủ bằng chứng, hãy giữ mức độ cẩn trọng
-- Nếu thay đổi có dấu hiệu sai logic, hãy đưa vào trường "bugs"
-- Nếu thay đổi có nguy cơ nhưng chưa chắc chắn, đưa vào "code_quality" hoặc "suggestions"
-- Mỗi mục trong list phải là câu ngắn, rõ ràng, cụ thể
-- Trường "approved" chỉ được đặt là true khi không có bug logic rõ ràng, không có security issue nghiêm trọng
-
-Tiêu chí đánh giá mức độ rủi ro:
-- LOW: ít khả năng gây lỗi, không có dấu hiệu bug/security issue
-- MEDIUM: có một vài điểm đáng nghi, có thể gây lỗi
-- HIGH: có dấu hiệu rõ ràng của bug logic, security risk
-
-Trả về JSON theo schema sau:
+Yêu cầu định dạng JSON (không được có văn bản thừa bên ngoài):
 {{
   "summary": "Tóm tắt ngắn gọn",
   "risk_level": "LOW | MEDIUM | HIGH",
   "risk_score": 0,
-  "bugs": ["bug 1", "bug 2"],
-  "security_issues": ["risk 1"],
-  "code_quality": ["nhận xét 1"],
-  "suggestions": ["gợi ý 1"],
+  "bugs": ["danh sách bug nếu có"],
+  "security_issues": ["danh sách lỗi bảo mật nếu có"],
+  "code_quality": ["nhận xét chất lượng code"],
+  "suggestions": ["đề xuất sửa"],
   "decision": "BLOCK | WARN | APPROVE",
   "approved": true
 }}
-
-Chỉ trả về JSON, không Markdown, không giải thích thêm.
 """
 
 
