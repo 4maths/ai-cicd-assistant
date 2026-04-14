@@ -62,14 +62,17 @@ Chỉ trả về JSON, không Markdown, không giải thích thêm.
 
 
 def parse_json_safely(raw: str) -> Dict[str, Any]:
+    import re
     raw = raw.strip()
-    if raw.startswith("```json"):
-        raw = raw[7:]
-    elif raw.startswith("```"):
-        raw = raw[3:]
-
-    if raw.endswith("```"):
-        raw = raw[:-3]
+    # Try to find JSON block in markdown
+    match = re.search(r"```json\s*(.*?)\s*```", raw, re.DOTALL)
+    if match:
+        raw = match.group(1)
+    else:
+        # Try to find anything that looks like a JSON object
+        match = re.search(r"({.*})", raw, re.DOTALL)
+        if match:
+            raw = match.group(1)
 
     try:
         return json.loads(raw.strip())

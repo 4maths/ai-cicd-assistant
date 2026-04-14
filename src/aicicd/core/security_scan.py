@@ -86,10 +86,15 @@ def filter_diff_by_paths(diff_text: str, path_config: Dict[str, Any]) -> str:
 
 def parse_json_safely(raw: str) -> Dict[str, Any]:
     raw = raw.strip()
-    if "```json" in raw:
-        raw = raw.split("```json")[-1].split("```")[0]
-    elif "```" in raw:
-        raw = raw.split("```")[-1].split("```")[0]
+    # Try to find JSON block in markdown
+    match = re.search(r"```json\s*(.*?)\s*```", raw, re.DOTALL)
+    if match:
+        raw = match.group(1)
+    else:
+        # Try to find anything that looks like a JSON object
+        match = re.search(r"({.*})", raw, re.DOTALL)
+        if match:
+            raw = match.group(1)
 
     try:
         return json.loads(raw.strip())
