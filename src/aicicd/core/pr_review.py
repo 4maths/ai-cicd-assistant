@@ -120,7 +120,7 @@ def run_pr_review(diff_text: str, provider: str = "groq") -> PRReviewResult:
     prompt = build_review_prompt(diff_text)
 
     try:
-        raw_response = llm.complete(prompt, max_tokens=1000)
+        raw_response = llm.complete(prompt, max_tokens=2000)
     except Exception as e:
         result.errors.append(f"LLM API error: {str(e)}")
         return result
