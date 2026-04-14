@@ -127,7 +127,10 @@ def run_pr_review(diff_text: str, provider: str = "groq") -> PRReviewResult:
 
     data = parse_json_safely(raw_response)
     if not data:
-        result.errors.append("Invalid or empty JSON returned from LLM")
+        # Debug: Đưa nội dung thô vào summary nếu parse lỗi để user thấy được AI đang nói gì
+        truncated_raw = (raw_response[:500] + "...") if len(raw_response) > 500 else raw_response
+        result.errors.append(f"Invalid JSON. Raw head: {truncated_raw}")
+        result.summary = f"LỖI PHÂN TÍCH JSON. AI ĐÃ TRẢ VỀ: {truncated_raw}"
         return result
 
     analysis = normalize_analysis(data)
@@ -138,8 +141,10 @@ def run_pr_review(diff_text: str, provider: str = "groq") -> PRReviewResult:
         risk_enum = RiskLevel.MEDIUM
 
     try:
-        decision_enum = Decision(analysis["decision"])
-    except ValueError:
+        # Ưu tiên lấy decision từ data, nếu không có thì mặc định WARN
+        decision_val = analysis.get("decision", "WARN").upper()
+        decision_enum = Decision[decision_val] if decision_val in Decision.__members__ else Decision.WARN
+    except Exception:
         decision_enum = Decision.WARN
 
     result.summary = analysis["summary"]
