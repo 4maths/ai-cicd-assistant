@@ -11,10 +11,11 @@ def get_local_diff(base_branch: str = "main") -> Dict[str, Any]:
             ["git", "diff", base_branch],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True
         )
         return {
-            "diff": result.stdout,
+            "diff": result.stdout or "",
             "metadata": {
                 "labels": [],
                 "author": "local",

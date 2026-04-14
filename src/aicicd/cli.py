@@ -65,7 +65,7 @@ def handle_fetch(args) -> int:
     diff_path = out_dir / "diff.txt"
     meta_path = out_dir / "metadata.json"
     
-    diff_path.write_text(data.get("diff", ""), encoding="utf-8")
+    diff_path.write_text(data.get("diff") or "", encoding="utf-8")
     meta_path.write_text(json.dumps(data.get("metadata", {}), indent=2, ensure_ascii=False), encoding="utf-8")
     
     print(f"Fetched diff to {diff_path} and metadata to {meta_path}")
