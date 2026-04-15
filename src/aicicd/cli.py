@@ -95,7 +95,11 @@ def handle_publish(args) -> int:
 
 def handle_pr_review(args) -> BaseResult:
     diff_text = read_file(args.input)
-    return run_pr_review(diff_text=diff_text, provider=args.provider)
+    return run_pr_review(
+        diff_text=diff_text, 
+        provider=args.provider,
+        paths_config_path=args.paths
+    )
 
 
 def handle_security_scan(args) -> BaseResult:
@@ -167,6 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     pr_parser = subparsers.add_parser(ToolName.PR_REVIEW.value)
     pr_parser.add_argument("--input", required=True, help="Path to diff file")
     pr_parser.add_argument("--provider", default="groq")
+    pr_parser.add_argument("--paths", default="config/security_paths.yml", help="Path to filtering config")
     pr_parser.add_argument("--format", default="json")
     pr_parser.add_argument("--output", help="Output file path")
 

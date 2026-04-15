@@ -14,6 +14,13 @@ def render_list(items: list, fallback: str = "Không có.") -> str:
     return "\n".join(f"- {item}" for item in items)
 
 
+def render_errors(errors: list) -> str:
+    if not errors:
+        return ""
+    lines = "\n".join(f"- ❌ {err}" for err in errors)
+    return f"\n> [!CAUTION]\n> **Lỗi hệ thống:**\n{lines}\n"
+
+
 def _format_pr_review(result: PRReviewResult) -> str:
     risk_icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🔴"}.get(str(result.risk_level), "⚪")
     status_line = "APPROVED" if result.approved else "CHANGES REQUESTED"
@@ -24,6 +31,7 @@ def _format_pr_review(result: PRReviewResult) -> str:
 **Decision:** {result.decision}  
 **Mức độ rủi ro:** {risk_icon} {result.risk_level}  
 **Risk score:** {result.risk_score}/100
+{render_errors(result.errors)}
 
 ### Tóm tắt
 {result.summary}
@@ -50,6 +58,7 @@ def _format_security_scan(result: SecurityScanResult) -> str:
 
 **Decision:** {decision}  
 **Tóm tắt:** {result.summary}
+{render_errors(result.errors)}
 
 Không phát hiện vấn đề bảo mật.
 """
@@ -130,6 +139,7 @@ def _format_deploy_guard(result: DeployGuardResult) -> str:
 **Health status:** {result.status or 'UNKNOWN'}
 
 **Tóm tắt**: {result.summary}
+{render_errors(result.errors)}
 
 ### Checks executed
 {render_list(checks)}

@@ -1,0 +1,64 @@
+name: AI CI/CD Assistant Checks
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  ai-assistant-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install AI Tool
+        run: |
+          pip install git+https://github.com/4maths/ai-cicd-assistant.git
+
+      - name: Fetch PR Data
+        id: fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          aicicd fetch --source github --repo ${{ github.repository }} --pr ${{ github.event.pull_request.number }} --out-dir ./payload
+          if [ ! -s ./payload/diff.txt ]; then
+            echo "::warning::Bản diff trống, AI Review sẽ không có dữ liệu để phân tích."
+          fi
+
+      - name: AI Security Scan
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          aicicd security-scan --input ./payload/diff.txt --metadata ./payload/metadata.json --format markdown --output security.md || true
+
+      - name: AI PR Review
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          aicicd pr-review --input ./payload/diff.txt --format markdown --output review.md || true
+
+      - name: Deploy Guard (Smoke Test)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          # Gợi ý: Thay URL bên dưới bằng URL preview hoặc staging của bạn
+          aicicd deploy-guard --url "https://www.google.com" --format markdown --output deploy.md || true
+
+      - name: Publish Reports
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [ -f security.md ] && aicicd publish --platform github --repo ${{ github.repository }} --pr ${{ github.event.pull_request.number }} --file security.md
+          [ -f review.md ] && aicicd publish --platform github --repo ${{ github.repository }} --pr ${{ github.event.pull_request.number }} --file review.md
+          [ -f deploy.md ] && aicicd publish --platform github --repo ${{ github.repository }} --pr ${{ github.event.pull_request.number }} --file deploy.md

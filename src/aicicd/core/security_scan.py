@@ -9,79 +9,10 @@ from aicicd.domain.models import Finding
 from aicicd.domain.results import SecurityScanResult
 from aicicd.providers.llm.factory import get_provider
 
-logger = logging.getLogger(__name__)
-
-DEFAULT_PATH_CONFIG = {
-    "include_paths": [],
-    "exclude_paths": ["tests/", "config/", ".github/", ".venv/", "docs/", "examples/"],
-    "exclude_extensions": [".md", ".txt", ".json", ".lock"],
-    "exclude_file_patterns": [r".*\.min\.js$"],
-}
+from aicicd.utils.diff_utils import load_path_config, filter_diff_by_paths, truncate_text
 
 
-def load_path_config(config_path: str) -> Dict[str, Any]:
-    path = Path(config_path)
-    if not path.exists():
-        return DEFAULT_PATH_CONFIG
-
-    try:
-        import yaml
-        with path.open("r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-
-        return {
-            "include_paths": data.get("include_paths", DEFAULT_PATH_CONFIG["include_paths"]),
-            "exclude_paths": data.get("exclude_paths", DEFAULT_PATH_CONFIG["exclude_paths"]),
-            "exclude_extensions": data.get("exclude_extensions", DEFAULT_PATH_CONFIG["exclude_extensions"]),
-            "exclude_file_patterns": data.get("exclude_file_patterns", DEFAULT_PATH_CONFIG["exclude_file_patterns"]),
-        }
-    except Exception as exc:
-        logger.error(f"Lỗi load security path config tại {config_path}: {exc}")
-        return DEFAULT_PATH_CONFIG
-
-
-def should_scan_file(filename: str, path_config: Dict[str, Any]) -> bool:
-    include_paths = path_config.get("include_paths", [])
-    exclude_paths = path_config.get("exclude_paths", [])
-    exclude_extensions = path_config.get("exclude_extensions", [])
-    exclude_file_patterns = path_config.get("exclude_file_patterns", [])
-
-    if include_paths:
-        if not any(filename == item or filename.startswith(item) for item in include_paths):
-            return False
-
-    if any(filename.startswith(prefix) for prefix in exclude_paths):
-        return False
-
-    if any(filename.endswith(ext) for ext in exclude_extensions):
-        return False
-
-    if any(re.match(pat, filename) for pat in exclude_file_patterns):
-        return False
-
-    return True
-
-
-def filter_diff_by_paths(diff_text: str, path_config: Dict[str, Any]) -> str:
-    """Lọc diff_text chỉ giữ lại các file cần scan để tiết kiệm token."""
-    filtered_lines = []
-    include_current = True
-    
-    for line in diff_text.splitlines():
-        if line.startswith("diff --git "):
-            parts = line.split(" ")
-            if len(parts) >= 4:
-                path = parts[3]
-                if path.startswith("b/"):
-                    path = path[2:]
-                include_current = should_scan_file(path, path_config)
-            else:
-                include_current = True
-                
-        if include_current:
-            filtered_lines.append(line)
-            
-    return "\n".join(filtered_lines)
+# Removed Load Config & Filter logic - now in diff_utils.py
 
 
 def parse_json_safely(raw: str) -> Dict[str, Any]:
@@ -147,7 +78,7 @@ def run_security_scan(diff_text: str, provider: str = "groq", prompt_path: Optio
     # 2. Call AI
     try:
         llm = get_provider(provider)
-        prompt = build_security_prompt(filtered_diff, prompt_path)
+        prompt = build_security_prompt(truncate_text(filtered_diff), prompt_path)
         raw_response = llm.complete(prompt, max_tokens=2000)
         data = parse_json_safely(raw_response)
     except Exception as e:

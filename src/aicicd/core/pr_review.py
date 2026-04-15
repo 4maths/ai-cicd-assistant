@@ -1,10 +1,8 @@
-import json
-import logging
-from typing import Any, Dict
-
+from typing import Any, Dict, Optional
 from aicicd.domain.enums import ToolName, Decision, RiskLevel
 from aicicd.domain.results import PRReviewResult
 from aicicd.providers.llm.factory import get_provider
+from aicicd.utils.diff_utils import load_path_config, filter_diff_by_paths, truncate_text
 
 logger = logging.getLogger(__name__)
 
@@ -98,31 +96,36 @@ def normalize_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def run_pr_review(diff_text: str, provider: str = "groq") -> PRReviewResult:
+def run_pr_review(diff_text: str, provider: str = "groq", paths_config_path: str = "config/security_paths.yml") -> PRReviewResult:
     result = PRReviewResult(
         tool=ToolName.PR_REVIEW,
-        decision=Decision.ERROR,
-        summary="Phân tích Pull Request",
+        decision=Decision.APPROVE,
+        summary="Phân tích Pull Request (AI-based)",
     )
 
     if not diff_text or not diff_text.strip():
-        result.errors.append("Diff input is empty.")
-        result.decision = Decision.APPROVE
-        result.summary = "Diff rỗng, bỏ qua phân tích."
+        result.summary = "Bản diff rỗng, bỏ qua phân tích."
+        return result
+
+    # 1. Filter Diff - Crucial for stability and token limits
+    path_config = load_path_config(paths_config_path)
+    filtered_diff = filter_diff_by_paths(diff_text, path_config)
+    
+    if not filtered_diff.strip():
+        result.summary = "Không có file nào cần review sau khi lọc (chỉ lọc bỏ các file rác/tự sinh)."
         return result
 
     try:
         llm = get_provider(provider)
-    except Exception as e:
-        result.errors.append(f"Provider error: {str(e)}")
-        return result
-
-    prompt = build_review_prompt(diff_text)
-
-    try:
+        # Truncate if still too massive
+        safe_diff = truncate_text(filtered_diff)
+        prompt = build_review_prompt(safe_diff)
         raw_response = llm.complete(prompt, max_tokens=2000)
     except Exception as e:
-        result.errors.append(f"LLM API error: {str(e)}")
+        logger.error(f"Lỗi gọi AI trong PR Review: {e}")
+        result.errors.append(f"AI Provider Error: {str(e)}")
+        result.decision = Decision.ERROR
+        result.summary = f"Lỗi kỹ thuật khi gọi AI: {str(e)}"
         return result
 
     data = parse_json_safely(raw_response)

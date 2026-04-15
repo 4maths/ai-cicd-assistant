@@ -99,6 +99,7 @@ def run_deploy_guard(url: str, provider: str = "groq", prompt_path: Optional[str
     if not data:
         result.errors.append("Không parse được kết quả JSON từ AI.")
         result.decision = Decision.ERROR
+        result.summary = "LỖI: AI không trả về dữ liệu phân tích hợp lệ (kết quả JSON trống)."
         return result
 
     # 3. Cập nhật kết quả dựa trên AI
