@@ -28,12 +28,12 @@ def build_security_prompt(diff: str, prompt_template_path: Optional[str] = None)
             template = path.read_text(encoding="utf-8")
             
     if not template:
-        # Fallback template if file missing
-        template = """Phân tích Code Diff sau theo chuẩn OWASP Top 10.
-Trả về JSON format:
+        # Fallback template if file missing - Optimized for limited tokens
+        template = """Analyze Code Diff for security vulnerabilities (OWASP Top 10).
+Return ONLY JSON:
 {
   "summary": "...",
-  "findings": [{"id": "..", "title": "..", "description": "..", "severity": "HIGH|MEDIUM|LOW", "file": "..", "suggestion": "..", "owasp_category": "..", "why_it_matters": "..", "snippet": ".."}],
+  "findings": [{"id": "..", "title": "..", "description": "..", "severity": "HIGH|MEDIUM|LOW", "file": "..", "suggestion": ".."}],
   "decision": "BLOCK|WARN|APPROVE"
 }
 Code Diff:
