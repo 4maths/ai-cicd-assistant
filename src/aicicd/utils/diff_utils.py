@@ -81,7 +81,7 @@ def filter_diff_by_paths(diff_text: str, path_config: Dict[str, Any]) -> str:
             
     return "\n".join(filtered_lines)
 
-def truncate_text(text: str, max_chars: int = 15000) -> str:
+def truncate_text(text: str, max_chars: int = 5000) -> str:
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "\n\n... [Diff truncated for token limits] ..."

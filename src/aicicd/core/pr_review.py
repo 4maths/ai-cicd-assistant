@@ -10,23 +10,23 @@ logger = logging.getLogger(__name__)
 
 
 def build_review_prompt(diff: str) -> str:
-    return f"""Bạn là Senior Code Reviewer. Hãy phân tích code diff sau và trả về kết quả dưới dạng JSON.
-Chỉ nhận xét những lỗi thực sự (bug, security, code quality). 
+    return f"""Senior Developer Review. Analyze diff and return ONLY JSON.
+Minimize length. Only report critical issues.
 
-Code diff:
+Diff:
 {diff}
 
-Yêu cầu định dạng JSON (không được có văn bản thừa bên ngoài):
+JSON Format:
 {{
-  "summary": "Tóm tắt ngắn gọn",
-  "risk_level": "LOW | MEDIUM | HIGH",
-  "risk_score": 0,
-  "bugs": ["danh sách bug nếu có"],
-  "security_issues": ["danh sách lỗi bảo mật nếu có"],
-  "code_quality": ["nhận xét chất lượng code"],
-  "suggestions": ["đề xuất sửa"],
-  "decision": "BLOCK | WARN | APPROVE",
-  "approved": true
+  "summary": "Short summary",
+  "risk_level": "LOW|MEDIUM|HIGH",
+  "risk_score": 0-100,
+  "bugs": [],
+  "security_issues": [],
+  "code_quality": [],
+  "suggestions": [],
+  "decision": "BLOCK|WARN|APPROVE",
+  "approved": bool
 }}
 """
 
@@ -119,10 +119,10 @@ def run_pr_review(diff_text: str, provider: str = "groq", paths_config_path: str
 
     try:
         llm = get_provider(provider)
-        # Truncate if still too massive
-        safe_diff = truncate_text(filtered_diff)
+        # Use strict truncation and low max_tokens to stay within 6k TPM
+        safe_diff = truncate_text(filtered_diff, max_chars=5000)
         prompt = build_review_prompt(safe_diff)
-        raw_response = llm.complete(prompt, max_tokens=2000)
+        raw_response = llm.complete(prompt, max_tokens=500)
     except Exception as e:
         logger.error(f"Lỗi gọi AI trong PR Review: {e}")
         result.errors.append(f"AI Provider Error: {str(e)}")

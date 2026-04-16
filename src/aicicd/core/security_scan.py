@@ -78,8 +78,8 @@ def run_security_scan(diff_text: str, provider: str = "groq", prompt_path: Optio
     # 2. Call AI
     try:
         llm = get_provider(provider)
-        prompt = build_security_prompt(truncate_text(filtered_diff), prompt_path)
-        raw_response = llm.complete(prompt, max_tokens=2000)
+        prompt = build_security_prompt(truncate_text(filtered_diff, max_chars=5000), prompt_path)
+        raw_response = llm.complete(prompt, max_tokens=500)
         data = parse_json_safely(raw_response)
     except Exception as e:
         logger.error(f"Lỗi gọi AI trong Security Scan: {e}")
