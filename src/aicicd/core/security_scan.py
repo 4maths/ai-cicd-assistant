@@ -8,30 +8,16 @@ from aicicd.domain.enums import ToolName, Decision, Severity, FindingType
 from aicicd.domain.models import Finding
 from aicicd.domain.results import SecurityScanResult
 from aicicd.providers.llm.factory import get_provider
-
 from aicicd.utils.diff_utils import load_path_config, filter_diff_by_paths, truncate_text
+from aicicd.utils.json_tools import parse_json_safely
+
+logger = logging.getLogger(__name__)
 
 
 # Removed Load Config & Filter logic - now in diff_utils.py
 
 
-def parse_json_safely(raw: str) -> Dict[str, Any]:
-    raw = raw.strip()
-    # Try to find JSON block in markdown
-    match = re.search(r"```json\s*(.*?)\s*```", raw, re.DOTALL)
-    if match:
-        raw = match.group(1)
-    else:
-        # Try to find anything that looks like a JSON object
-        match = re.search(r"({.*})", raw, re.DOTALL)
-        if match:
-            raw = match.group(1)
-
-    try:
-        return json.loads(raw.strip())
-    except json.JSONDecodeError as e:
-        logger.error(f"Cannot parse Security JSON: {str(e)}\nRaw: {raw}")
-        return {}
+# Removed local parse_json_safely - now using shared version from json_tools
 
 
 def build_security_prompt(diff: str, prompt_template_path: Optional[str] = None) -> str:

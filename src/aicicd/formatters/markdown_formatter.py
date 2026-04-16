@@ -11,7 +11,21 @@ from aicicd.domain.enums import ToolName, Severity
 def render_list(items: list, fallback: str = "Không có.") -> str:
     if not items:
         return f"- {fallback}"
-    return "\n".join(f"- {item}" for item in items)
+    
+    formatted_items = []
+    for item in items:
+        if isinstance(item, dict):
+            # Format finding dictionaries: [id] description
+            fid = item.get("id", "")
+            desc = item.get("description", item.get("message", str(item)))
+            if fid:
+                formatted_items.append(f"**[{fid}]** {desc}")
+            else:
+                formatted_items.append(desc)
+        else:
+            formatted_items.append(str(item))
+            
+    return "\n".join(f"- {item}" for item in formatted_items)
 
 
 def render_errors(errors: list) -> str:
