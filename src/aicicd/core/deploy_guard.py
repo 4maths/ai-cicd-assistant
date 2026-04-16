@@ -7,21 +7,12 @@ from typing import Any, Dict, Optional
 from aicicd.domain.enums import ToolName, Decision, DeployStatus
 from aicicd.domain.results import DeployGuardResult
 from aicicd.providers.llm.factory import get_provider
+from aicicd.utils.json_tools import parse_json_safely
 
 logger = logging.getLogger(__name__)
 
 
-def parse_json_safely(raw: str) -> Dict[str, Any]:
-    raw = raw.strip()
-    if "```json" in raw:
-        raw = raw.split("```json")[-1].split("```")[0]
-    elif "```" in raw:
-        raw = raw.split("```")[-1].split("```")[0]
-    try:
-        import json
-        return json.loads(raw.strip())
-    except Exception:
-        return {}
+# Removed local parse_json_safely - using shared version
 
 
 def build_deploy_prompt(url: str, status_code: int, headers: str, body: str, prompt_template_path: Optional[str] = None) -> str:
@@ -32,13 +23,12 @@ def build_deploy_prompt(url: str, status_code: int, headers: str, body: str, pro
             template = path.read_text(encoding="utf-8")
             
     if not template:
-        template = """Phân tích kết quả deploy:
+        template = """Smoke test result:
 URL: {{url}}
 Status: {{status_code}}
-Headers: {{headers}}
 Body: {{body}}
 
-Trả về JSON: {"summary": "..", "status": "HEALTHY|DEGRADED|UNHEALTHY", "decision": "APPROVE|WARN|BLOCK", "message": "..", "checks": []}
+Return ONLY JSON: {"summary": "..", "status": "HEALTHY|DEGRADED|UNHEALTHY", "decision": "APPROVE|WARN|BLOCK", "message": "..", "checks": []}
 """
     return template.replace("{{url}}", url)\
                    .replace("{{status_code}}", str(status_code))\

@@ -5,6 +5,7 @@ from aicicd.domain.enums import ToolName, Decision, RiskLevel
 from aicicd.domain.results import PRReviewResult
 from aicicd.providers.llm.factory import get_provider
 from aicicd.utils.diff_utils import load_path_config, filter_diff_by_paths, truncate_text
+from aicicd.utils.json_tools import parse_json_safely
 
 logger = logging.getLogger(__name__)
 
@@ -31,24 +32,7 @@ JSON Format:
 """
 
 
-def parse_json_safely(raw: str) -> Dict[str, Any]:
-    import re
-    raw = raw.strip()
-    # Try to find JSON block in markdown
-    match = re.search(r"```json\s*(.*?)\s*```", raw, re.DOTALL)
-    if match:
-        raw = match.group(1)
-    else:
-        # Try to find anything that looks like a JSON object
-        match = re.search(r"({.*})", raw, re.DOTALL)
-        if match:
-            raw = match.group(1)
-
-    try:
-        return json.loads(raw.strip())
-    except json.JSONDecodeError as e:
-        logger.error(f"Cannot parse JSON from LLM: {str(e)}\nRaw output: {raw}")
-        return {}
+# Removed local parse_json_safely - now using shared version from json_tools
 
 
 def normalize_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -140,20 +124,22 @@ def run_pr_review(diff_text: str, provider: str = "groq", paths_config_path: str
 
     analysis = normalize_analysis(data)
 
-    try:
-        risk_enum = RiskLevel(analysis["risk_level"])
-    except ValueError:
-        risk_enum = RiskLevel.MEDIUM
-
-    try:
-        # Ưu tiên lấy decision từ data, nếu không có thì mặc định WARN
-        decision_val = analysis.get("decision", "WARN").upper()
-        decision_enum = Decision[decision_val] if decision_val in Decision.__members__ else Decision.WARN
-    except Exception:
+    # Ensure decision is valid and NEVER stays as ERROR if data is present
+    decision_val = analysis.get("decision", "WARN").upper()
+    if decision_val not in Decision.__members__:
+        decision_enum = Decision.WARN
+    else:
+        decision_enum = Decision[decision_val]
+        
+    if decision_enum == Decision.ERROR:
         decision_enum = Decision.WARN
 
     result.summary = analysis["summary"]
-    result.risk_level = risk_enum
+    try:
+        result.risk_level = RiskLevel(analysis["risk_level"])
+    except ValueError:
+        result.risk_level = RiskLevel.MEDIUM
+        
     result.risk_score = analysis["risk_score"]
     result.bugs = analysis["bugs"]
     result.security_issues = analysis["security_issues"]

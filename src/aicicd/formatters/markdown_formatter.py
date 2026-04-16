@@ -22,13 +22,14 @@ def render_errors(errors: list) -> str:
 
 
 def _format_pr_review(result: PRReviewResult) -> str:
-    risk_icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🔴"}.get(str(result.risk_level), "⚪")
+    risk_icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🔴", "CRITICAL": "🔥"}.get(str(result.risk_level), "⚪")
+    decision_icon = {"APPROVE": "✅", "WARN": "⚠️", "BLOCK": "🚫", "ERROR": "❌"}.get(str(result.decision), "⚪")
     status_line = "APPROVED" if result.approved else "CHANGES REQUESTED"
 
     return f"""## AI PR Review
 
 **Trạng thái:** {status_line}  
-**Decision:** {result.decision}  
+**Decision:** {decision_icon} {result.decision}  
 **Mức độ rủi ro:** {risk_icon} {result.risk_level}  
 **Risk score:** {result.risk_score}/100
 {render_errors(result.errors)}
