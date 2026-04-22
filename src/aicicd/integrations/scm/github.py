@@ -5,36 +5,50 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
-MAX_DIFF_CHARS = 10000
+MAX_DIFF_CHARS = 32000
 
 def get_pr_diff(repo_name: str, pr_number: int, token: str = "") -> Dict[str, Any]:
-    """Gets the unified diff using local git diff and metadata from environment."""
+    """Gets the unified diff using local git diff with robust fallback for CI."""
     try:
-        # Determine base branch for diff
         base_ref = os.environ.get("GITHUB_BASE_REF", "main")
         head_ref = os.environ.get("GITHUB_HEAD_REF", "HEAD")
         
-        logger.info(f"Fetching diff using git diff origin/{base_ref}...{head_ref}")
+        logger.info(f"--- Git Diff Diagnostics ---")
+        logger.info(f"GITHUB_BASE_REF: {base_ref}")
+        logger.info(f"GITHUB_HEAD_REF: {head_ref}")
         
-        # Try to get diff using git command
-        cmd = ["git", "diff", f"origin/{base_ref}...{head_ref}"]
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=True)
-        full_diff = result.stdout
+        # 1. Ensure base branch is fetched
+        logger.info(f"Fetching origin/{base_ref}...")
+        subprocess.run(["git", "fetch", "origin", base_ref], capture_output=True)
+        
+        # 2. Try various diff methods
+        diff_cmds = [
+            ["git", "diff", f"origin/{base_ref}...{head_ref}"],
+            ["git", "diff", f"origin/{base_ref}...HEAD"],
+            ["git", "diff", "HEAD^..HEAD"], # Last commit fallback
+        ]
+        
+        full_diff = ""
+        for cmd in diff_cmds:
+            logger.info(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            if result.returncode == 0 and result.stdout.strip():
+                full_diff = result.stdout
+                logger.info(f"Success! Found diff using {' '.join(cmd)} ({len(full_diff)} chars)")
+                break
         
         if not full_diff:
-            # Fallback for local testing if origin doesn't exist
-            logger.info("Empty diff with origin, trying local branch diff")
-            cmd = ["git", "diff", base_ref]
-            result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=True)
-            full_diff = result.stdout
+            logger.warning("All git diff attempts failed or returned empty. Is the repo fully fetched?")
+            # Very aggressive fallback: show the last commit
+            logger.info("Aggressive fallback: git show HEAD")
+            result = subprocess.run(["git", "show", "HEAD"], capture_output=True, text=True, encoding="utf-8")
+            full_diff = result.stdout if result.returncode == 0 else ""
 
         if len(full_diff) > MAX_DIFF_CHARS:
             logger.info(f"Diff too large, truncating to {MAX_DIFF_CHARS} chars.")
             full_diff = full_diff[:MAX_DIFF_CHARS]
 
-        # Get metadata from environment variables (provided by GitHub Actions)
         author = os.environ.get("GITHUB_ACTOR", "unknown")
-        # PR Title is not directly in env, but can be passed or left as generic if no API
         title = f"PR #{pr_number}" if pr_number else "Local Changes"
 
         return {
@@ -46,7 +60,5 @@ def get_pr_diff(repo_name: str, pr_number: int, token: str = "") -> Dict[str, An
         }
 
     except Exception as exc:
-        logger.error(f"Error fetching diff using git: {exc}")
+        logger.error(f"Error fetching diff: {exc}")
         return {"diff": "", "metadata": {}}
-
-
