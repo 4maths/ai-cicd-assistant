@@ -6,11 +6,12 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 DEFAULT_PATH_CONFIG = {
-    "include_paths": ["src/", "app/", ".github/"],
-    "exclude_paths": ["tests/", "config/", ".venv/", "docs/", "examples/", "node_modules/", "vendor/"],
-    "exclude_extensions": [".md", ".txt", ".json", ".lock", ".csv", ".pdf", ".svg", ".png", ".jpg", ".jpeg"],
-    "exclude_file_patterns": [r".*\.min\.js$", r".*\.map$"],
+    "include_paths": [],
+    "exclude_paths": [],
+    "exclude_extensions": [],
+    "exclude_file_patterns": [],
 }
+
 
 
 
