@@ -15,17 +15,30 @@ def render_list(items: list, fallback: str = "Không có.") -> str:
     formatted_items = []
     for item in items:
         if isinstance(item, dict):
-            # Format finding dictionaries: [id] description
-            fid = item.get("id", "")
-            desc = item.get("description", item.get("message", str(item)))
-            if fid:
-                formatted_items.append(f"**[{fid}]** {desc}")
-            else:
-                formatted_items.append(desc)
-        else:
-            formatted_items.append(str(item))
+            # Extract possible identifier and description
+            fid = item.get("id") or item.get("type") or item.get("issue") or ""
+            desc = item.get("description") or item.get("message") or item.get("summary") or str(item)
             
-    return "\n".join(f"- {item}" for item in formatted_items)
+            if fid and desc:
+                formatted_items.append(f"**[{fid}]** {desc}")
+            elif desc:
+                formatted_items.append(desc)
+            else:
+                formatted_items.append(str(item))
+        else:
+            formatted_items.append(str(item).strip())
+            
+    # Remove duplicates and empty items
+    unique_items = []
+    for x in formatted_items:
+        if x and x not in unique_items:
+            unique_items.append(x)
+
+    if not unique_items:
+        return f"- {fallback}"
+
+    return "\n".join(f"- {item}" for item in unique_items)
+
 
 
 def render_errors(errors: list) -> str:

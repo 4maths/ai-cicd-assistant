@@ -62,11 +62,13 @@ def normalize_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
     for field in ["bugs", "security_issues", "code_quality", "suggestions"]:
         value = normalized[field]
         if isinstance(value, list):
-            normalized[field] = [str(item).strip() for item in value if str(item).strip()]
+            # Keep dictionary/object structure if it exists, don't force to string
+            normalized[field] = [item for item in value if item]
         elif value:
-            normalized[field] = [str(value).strip()]
+            normalized[field] = [value]
         else:
             normalized[field] = []
+
 
     if isinstance(normalized["approved"], str):
         normalized["approved"] = normalized["approved"].strip().lower() == "true"
