@@ -1,0 +1,20 @@
+rules:
+  - id: "hardcoded_secret"
+    description: "Detected potential hardcoded secret or API key."
+    pattern: "(?i)(api[_-]?key|secret|token|password|auth|access[_-]?key)[\\s\\t]*[:=][\\s\\t]*['\"]([a-zA-Z0-9]{16,})['\"]"
+    severity: "HIGH"
+  
+  - id: "sql_injection"
+    description: "Potential SQL injection vulnerability detected (string concatenation in query)."
+    pattern: "(?i)(execute|query|select|insert|update|delete).*\\+.*(from|where|into)"
+    severity: "HIGH"
+
+  - id: "dangerous_function_exec"
+    description: "Use of dangerous function 'exec' or 'eval' which can lead to RCE."
+    pattern: "\\b(exec|eval|os\\.system|subprocess\\.Popen)\\(.*\\)"
+    severity: "CRITICAL"
+
+  - id: "hardcoded_ip"
+    description: "Potential hardcoded IP address found."
+    pattern: "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"
+    severity: "INFO"

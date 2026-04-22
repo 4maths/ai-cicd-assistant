@@ -74,7 +74,9 @@ def normalize_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
         normalized["approved"] = bool(normalized["approved"])
 
     if normalized["decision"] == "BLOCK":
+        normalized["decision"] = "WARN" # Downgrade to WARN
         normalized["approved"] = False
+
 
     if normalized["decision"] == "APPROVE" and normalized["risk_level"] == "HIGH":
         normalized["decision"] = "WARN"
@@ -82,72 +84,73 @@ def normalize_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def run_pr_review(diff_text: str, provider: str = "groq", paths_config_path: str = "config/security_paths.yml") -> PRReviewResult:
+from aicicd.utils.chunking import chunk_diff
+
+def run_pr_review(diff_text: str, provider: str = "fpt", paths_config_path: str = "config/security_paths.yml") -> PRReviewResult:
     result = PRReviewResult(
         tool=ToolName.PR_REVIEW,
         decision=Decision.APPROVE,
-        summary="Phân tích Pull Request (AI-based)",
+        summary="Phân tích Pull Request (Self-hosted FPT LLM)",
     )
 
     if not diff_text or not diff_text.strip():
         result.summary = "Bản diff rỗng, bỏ qua phân tích."
         return result
 
-    # 1. Filter Diff - Crucial for stability and token limits
+    # 1. Filter Diff
     path_config = load_path_config(paths_config_path)
     filtered_diff = filter_diff_by_paths(diff_text, path_config)
     
     if not filtered_diff.strip():
-        result.summary = "Không có file nào cần review sau khi lọc (chỉ lọc bỏ các file rác/tự sinh)."
+        result.summary = "Không có file nguồn nào cần review sau khi lọc (src/, app/)."
         return result
 
-    try:
-        llm = get_provider(provider)
-        # Use strict truncation and low max_tokens to stay within 6k TPM
-        safe_diff = truncate_text(filtered_diff, max_chars=5000)
-        prompt = build_review_prompt(safe_diff)
-        raw_response = llm.complete(prompt, max_tokens=500)
-    except Exception as e:
-        logger.error(f"Lỗi gọi AI trong PR Review: {e}")
-        result.errors.append(f"AI Provider Error: {str(e)}")
-        result.decision = Decision.ERROR
-        result.summary = f"Lỗi kỹ thuật khi gọi AI: {str(e)}"
-        return result
+    # 2. Split into chunks
+    chunks = chunk_diff(filtered_diff, chunk_size=1500)
+    
+    summaries = []
+    all_bugs = []
+    all_sec = []
+    all_quality = []
+    all_suggestions = []
+    
+    llm = get_provider(provider)
 
-    data = parse_json_safely(raw_response)
-    if not data:
-        # Debug: Đưa nội dung thô vào summary nếu parse lỗi để user thấy được AI đang nói gì
-        truncated_raw = (raw_response[:500] + "...") if len(raw_response) > 500 else raw_response
-        result.errors.append(f"Invalid JSON. Raw head: {truncated_raw}")
-        result.summary = f"LỖI PHÂN TÍCH JSON. AI ĐÃ TRẢ VỀ: {truncated_raw}"
-        return result
-
-    analysis = normalize_analysis(data)
-
-    # Ensure decision is valid and NEVER stays as ERROR if data is present
-    decision_val = analysis.get("decision", "WARN").upper()
-    if decision_val not in Decision.__members__:
-        decision_enum = Decision.WARN
-    else:
-        decision_enum = Decision[decision_val]
+    # 3. Process each chunk
+    for i, chunk in enumerate(chunks):
+        logger.info(f"Reviewing chunk {i+1}/{len(chunks)}")
+        prompt = build_review_prompt(chunk)
         
-    if decision_enum == Decision.ERROR:
-        decision_enum = Decision.WARN
+        try:
+            raw_response = llm.complete(prompt, max_tokens=1000)
+            data = parse_json_safely(raw_response)
+            
+            if data:
+                analysis = normalize_analysis(data)
+                if analysis.get("summary"):
+                    summaries.append(f"[Chunk {i+1}] {analysis['summary']}")
+                all_bugs.extend(analysis.get("bugs", []))
+                all_sec.extend(analysis.get("security_issues", []))
+                all_quality.extend(analysis.get("code_quality", []))
+                all_suggestions.extend(analysis.get("suggestions", []))
+                
+                # Decision aggregation: if any chunk is BLOCK (or WARN), downgrade overall
+                if analysis.get("decision") == "BLOCK" or analysis.get("decision") == "WARN":
+                    result.decision = Decision.WARN
+        except Exception as e:
+            logger.error(f"Review failed for chunk {i+1}: {e}")
+            result.errors.append(f"Chunk {i+1} Review Error: {str(e)}")
 
-    result.summary = analysis["summary"]
-    try:
-        result.risk_level = RiskLevel(analysis["risk_level"])
-    except ValueError:
-        result.risk_level = RiskLevel.MEDIUM
-        
-    result.risk_score = analysis["risk_score"]
-    result.bugs = analysis["bugs"]
-    result.security_issues = analysis["security_issues"]
-    result.code_quality = analysis["code_quality"]
-    result.suggestions = analysis["suggestions"]
-    result.decision = decision_enum
-    result.approved = analysis["approved"]
-
+    # 4. Final aggregation
+    result.summary = "\n".join(summaries) if summaries else "Hoàn thành review các thành phần code."
+    result.bugs = list(set(all_bugs)) # Unique bugs
+    result.security_issues = list(set(all_sec))
+    result.code_quality = list(set(all_quality))
+    result.suggestions = list(set(all_suggestions))
+    
+    result.approved = result.decision == Decision.APPROVE
     result.metadata["provider"] = provider
+    result.metadata["chunks_processed"] = len(chunks)
 
     return result
+

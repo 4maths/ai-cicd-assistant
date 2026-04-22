@@ -112,25 +112,9 @@ def handle_security_scan(args) -> BaseResult:
         paths_path=args.paths,
     )
     
-    # Logic Bypass bằng Labels
-    if args.metadata and Path(args.metadata).exists():
-        try:
-            meta = json.loads(Path(args.metadata).read_text(encoding="utf-8"))
-            labels = meta.get("labels", [])
-            bypass_labels = ["security-bypass", "accepted-risk", "bypass-security"]
-            
-            found_label = next((l for l in labels if l.lower() in bypass_labels), None)
-            
-            if found_label and result.decision == Decision.BLOCK:
-                result.decision = Decision.WARN
-                result.is_bypassed = True
-                result.bypass_label = found_label
-                result.summary = f"⚠️ [BYPASSED] {result.summary} (Chấp nhận rủi ro qua label: {found_label})"
-                logger.info(f"Security scan blocked but bypassed by label: {found_label}")
-        except Exception as e:
-            logger.error(f"Lỗi khi xử lý metadata cho bypass logic: {e}")
-
+    # Logic Bypass bằng Labels đã bị gỡ bỏ theo yêu cầu tối ưu hóa
     return result
+
 
 
 def handle_log_analysis(args) -> BaseResult:

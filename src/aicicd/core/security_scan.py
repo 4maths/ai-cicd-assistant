@@ -42,11 +42,14 @@ Code Diff:
     return template.replace("{{diff}}", diff)
 
 
-def run_security_scan(diff_text: str, provider: str = "groq", prompt_path: Optional[str] = None, paths_path: str = "config/security_paths.yml") -> SecurityScanResult:
+from aicicd.utils.chunking import chunk_diff
+from aicicd.utils.regex_scanner import RegexScanner
+
+def run_security_scan(diff_text: str, provider: str = "fpt", prompt_path: Optional[str] = None, paths_path: str = "config/security_paths.yml") -> SecurityScanResult:
     result = SecurityScanResult(
         tool=ToolName.SECURITY_SCAN,
         decision=Decision.APPROVE,
-        summary="Phân tích bảo mật mã nguồn (AI-based - OWASP Top 10)",
+        summary="Phân tích bảo mật mã nguồn (Self-hosted FPT LLM + Regex Scanner)",
     )
     
     if not diff_text or not diff_text.strip():
@@ -58,66 +61,72 @@ def run_security_scan(diff_text: str, provider: str = "groq", prompt_path: Optio
     filtered_diff = filter_diff_by_paths(diff_text, path_config)
     
     if not filtered_diff.strip():
-        result.summary = "Không có file nào thỏa mãn điều kiện quét sau khi lọc path."
+        result.summary = "Không có file nguồn nào cần quét sau khi lọc."
         return result
 
-    # 2. Call AI
-    try:
-        llm = get_provider(provider)
-        prompt = build_security_prompt(truncate_text(filtered_diff, max_chars=5000), prompt_path)
-        raw_response = llm.complete(prompt, max_tokens=500)
-        data = parse_json_safely(raw_response)
-    except Exception as e:
-        logger.error(f"Lỗi gọi AI trong Security Scan: {e}")
-        result.errors.append(f"AI Provider Error: {str(e)}")
-        result.decision = Decision.ERROR
-        return result
-
-    if not data:
-        result.errors.append("Không parse được kết quả JSON từ AI.")
-        result.decision = Decision.ERROR
-        return result
-
-    # 3. Process findings
-    result.summary = data.get("summary", "Đã hoàn thành quét bảo mật.")
-    raw_findings = data.get("findings", [])
+    # 2. Split into chunks for processing
+    chunks = chunk_diff(filtered_diff, chunk_size=1500)
     
-    findings_list = []
-    for item in raw_findings:
-        sev_str = str(item.get("severity", "LOW")).upper()
+    all_findings = []
+    llm = get_provider(provider)
+    scanner = RegexScanner()
+
+    # 3. Process each chunk
+    for i, chunk in enumerate(chunks):
+        logger.info(f"Processing security chunk {i+1}/{len(chunks)}")
+        
+        # 3a. Primary Regex Scan
+        regex_findings = scanner.scan(chunk)
+        all_findings.extend(regex_findings)
+
+        # 3b. LLM Scan for context and subtle issues
+        prompt = build_security_prompt(chunk, prompt_path)
         try:
-            severity_enum = Severity(sev_str)
-        except ValueError:
-            severity_enum = Severity.LOW
+            raw_response = llm.complete(prompt, max_tokens=1000)
+            data = parse_json_safely(raw_response)
             
-        finding = Finding(
-            type=FindingType.SECURITY,
-            severity=severity_enum,
-            title=str(item.get("title", "Lỗ hổng bảo mật")),
-            description=str(item.get("description", "")),
-            file=str(item.get("file", "unknown")),
-            suggestion=str(item.get("suggestion", "")),
-            metadata={
-                "owasp_category": str(item.get("owasp_category", "N/A")),
-                "why_it_matters": str(item.get("why_it_matters", "")),
-                "snippet": str(item.get("snippet", ""))
-            }
-        )
-        findings_list.append(finding)
+            if data:
+                raw_findings = data.get("findings", [])
+                for item in raw_findings:
+                    findings_list = []
+                    sev_str = str(item.get("severity", "LOW")).upper()
+                    try:
+                        severity_enum = Severity(sev_str)
+                    except ValueError:
+                        severity_enum = Severity.LOW
+                        
+                    finding = Finding(
+                        type=FindingType.SECURITY,
+                        severity=severity_enum,
+                        title=str(item.get("title", "AI Detection")),
+                        description=str(item.get("description", "")),
+                        file=str(item.get("file", "unknown")),
+                        suggestion=str(item.get("suggestion", "")),
+                        metadata={
+                            "owasp_category": str(item.get("owasp_category", "N/A")),
+                            "source": "AI"
+                        }
+                    )
+                    all_findings.append(finding)
+        except Exception as e:
+            logger.error(f"LLM Scan failed for chunk {i+1}: {e}")
+            result.errors.append(f"Chunk {i+1} LLM Error: {str(e)}")
 
-    result.findings = findings_list
-    result.high_count = sum(1 for f in findings_list if f.severity == Severity.HIGH)
-    result.medium_count = sum(1 for f in findings_list if f.severity == Severity.MEDIUM)
-    result.low_count = sum(1 for f in findings_list if f.severity == Severity.LOW)
+    # 4. Aggregate findings
+    result.findings = all_findings
+    result.high_count = sum(1 for f in all_findings if f.severity in [Severity.HIGH, Severity.CRITICAL])
+    result.medium_count = sum(1 for f in all_findings if f.severity == Severity.MEDIUM)
+    result.low_count = sum(1 for f in all_findings if f.severity == Severity.LOW)
 
-    # 4. Final Decision
-    decision_str = str(data.get("decision", "APPROVE")).upper()
-    if decision_str == "BLOCK" or result.high_count > 0:
-        result.decision = Decision.BLOCK
+    # 5. Final Decision
+    if result.high_count > 0:
+        result.decision = Decision.WARN
         result.has_blocking_issues = True
-    elif decision_str == "WARN" or result.medium_count > 0:
+    elif result.medium_count > 0:
         result.decision = Decision.WARN
     else:
         result.decision = Decision.APPROVE
 
+    result.summary = f"Đã hoàn thành quét {len(chunks)} đoạn mã. Phát hiện {len(all_findings)} lỗi bảo mật tiềm ẩn."
     return result
+

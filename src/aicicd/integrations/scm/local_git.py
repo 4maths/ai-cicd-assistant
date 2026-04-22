@@ -17,11 +17,11 @@ def get_local_diff(base_branch: str = "main") -> Dict[str, Any]:
         return {
             "diff": result.stdout or "",
             "metadata": {
-                "labels": [],
                 "author": "local",
                 "title": "Local Changes"
             }
         }
+
     except subprocess.CalledProcessError as exc:
         logger.error(f"Error executing git diff: {exc}")
         return {"diff": "", "metadata": {}}

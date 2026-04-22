@@ -37,23 +37,18 @@ jobs:
           fi
 
       - name: AI Security Scan
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          aicicd security-scan --input ./payload/diff.txt --metadata ./payload/metadata.json --format markdown --output security.md || true
+          aicicd security-scan --provider fpt --input ./payload/diff.txt --metadata ./payload/metadata.json --format markdown --output security.md || true
 
       - name: AI PR Review
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          aicicd pr-review --input ./payload/diff.txt --format markdown --output review.md || true
+          aicicd pr-review --provider fpt --input ./payload/diff.txt --format markdown --output review.md || true
 
       - name: Deploy Guard (Smoke Test)
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           # Gợi ý: Thay URL bên dưới bằng URL preview hoặc staging của bạn
-          aicicd deploy-guard --url "https://www.google.com" --format markdown --output deploy.md || true
+          aicicd deploy-guard --provider fpt --url "https://www.google.com" --format markdown --output deploy.md || true
+
 
       - name: Publish Reports
         env:

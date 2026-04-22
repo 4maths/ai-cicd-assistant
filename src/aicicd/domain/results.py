@@ -58,14 +58,7 @@ class SecurityScanResult(BaseResult):
     low_count: int = 0
 
     has_blocking_issues: bool = False
-    is_bypassed: bool = False
-    bypass_label: Optional[str] = None
 
-    def get_exit_code(self) -> ExitCode:
-        if self.is_bypassed:
-            # Nếu được Bypass, coi như thành công (thoát mã 0) để Pipeline xanh
-            return ExitCode.SUCCESS
-        return super().get_exit_code()
 
 
 # =========================

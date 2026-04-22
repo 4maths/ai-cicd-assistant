@@ -62,7 +62,9 @@ class ProviderName(StrEnum):
     GROQ = "groq"
     OPENAI = "openai"
     OLLAMA = "ollama"
+    FPT = "fpt"
     MOCK = "mock"
+
 
 
 class SCMPlatform(StrEnum):

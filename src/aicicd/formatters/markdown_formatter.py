@@ -81,16 +81,27 @@ Không phát hiện vấn đề bảo mật.
     lines = []
     for f in result.findings:
         sev_icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🔴"}.get(str(f.severity), "⚪")
-        allow_override = f.metadata.get("allow_override", False)
-        snippet = f.metadata.get("snippet", "")
         
-        snippet_block = f"\n  - Snippet: `{snippet}`" if snippet else ""
+        # Metadata extraction
+        owasp = f.metadata.get("owasp_category")
+        why = f.metadata.get("why_it_matters")
+        snippet = f.metadata.get("snippet")
+        
+        metadata_lines = []
+        if owasp: metadata_lines.append(f"    - **OWASP Category:** {owasp}")
+        if why: metadata_lines.append(f"    - **Why it matters:** {why}")
+        if snippet: metadata_lines.append(f"    - **Snippet:** `{snippet}`")
+        
+        metadata_str = "\n".join(metadata_lines)
+        if metadata_str:
+            metadata_str = "\n" + metadata_str
+
         lines.append(
             f"- **{sev_icon} {f.severity}** | `{f.file}` | {f.description} (`{f.title}`)\n"
-            f"  - Why it matters: {f.metadata.get('why_it_matters', '')}\n"
-            f"  - Suggested fix: {f.suggestion}"
-            f"{snippet_block}"
+            f"    - **Suggested fix:** {f.suggestion}"
+            f"{metadata_str}"
         )
+
 
     return f"""## AI Security Scan
 

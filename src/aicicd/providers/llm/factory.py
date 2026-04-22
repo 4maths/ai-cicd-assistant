@@ -4,6 +4,7 @@ from aicicd.domain.enums import ProviderName
 
 from .base import LLMProvider
 from .groq_provider import GroqProvider
+from .fpt_provider import FPTProvider
 
 
 def get_provider(name: str) -> LLMProvider:
@@ -15,7 +16,11 @@ def get_provider(name: str) -> LLMProvider:
     if provider == ProviderName.GROQ:
         return GroqProvider()
 
+    elif provider == ProviderName.FPT:
+        return FPTProvider()
+
     # Placeholder cho tương lai
+
     elif provider == ProviderName.OPENAI:
         raise NotImplementedError("OpenAI provider not implemented yet")
 
