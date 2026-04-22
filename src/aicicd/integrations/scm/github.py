@@ -7,58 +7,79 @@ logger = logging.getLogger(__name__)
 
 MAX_DIFF_CHARS = 32000
 
+import requests
+
+MAX_DIFF_CHARS = 32000
+
 def get_pr_diff(repo_name: str, pr_number: int, token: str = "") -> Dict[str, Any]:
-    """Gets the unified diff using local git diff with robust fallback for CI."""
-    try:
-        base_ref = os.environ.get("GITHUB_BASE_REF", "main")
-        head_ref = os.environ.get("GITHUB_HEAD_REF", "HEAD")
-        
-        logger.info(f"--- Git Diff Diagnostics ---")
-        logger.info(f"GITHUB_BASE_REF: {base_ref}")
-        logger.info(f"GITHUB_HEAD_REF: {head_ref}")
-        
-        # 1. Ensure base branch is fetched
-        logger.info(f"Fetching origin/{base_ref}...")
-        subprocess.run(["git", "fetch", "origin", base_ref], capture_output=True)
-        
-        # 2. Try various diff methods
-        diff_cmds = [
-            ["git", "diff", f"origin/{base_ref}...{head_ref}"],
-            ["git", "diff", f"origin/{base_ref}...HEAD"],
-            ["git", "diff", "HEAD^..HEAD"], # Last commit fallback
-        ]
-        
-        full_diff = ""
-        for cmd in diff_cmds:
-            logger.info(f"Running: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
-            if result.returncode == 0 and result.stdout.strip():
-                full_diff = result.stdout
-                logger.info(f"Success! Found diff using {' '.join(cmd)} ({len(full_diff)} chars)")
-                break
-        
-        if not full_diff:
-            logger.warning("All git diff attempts failed or returned empty. Is the repo fully fetched?")
-            # Very aggressive fallback: show the last commit
-            logger.info("Aggressive fallback: git show HEAD")
-            result = subprocess.run(["git", "show", "HEAD"], capture_output=True, text=True, encoding="utf-8")
-            full_diff = result.stdout if result.returncode == 0 else ""
+    """Gets the unified diff using GitHub API (primary) or local git (fallback)."""
+    full_diff = ""
+    author = os.environ.get("GITHUB_ACTOR", "unknown")
+    title = f"PR #{pr_number}" if pr_number else "Local Changes"
 
-        if len(full_diff) > MAX_DIFF_CHARS:
-            logger.info(f"Diff too large, truncating to {MAX_DIFF_CHARS} chars.")
-            full_diff = full_diff[:MAX_DIFF_CHARS]
-
-        author = os.environ.get("GITHUB_ACTOR", "unknown")
-        title = f"PR #{pr_number}" if pr_number else "Local Changes"
-
-        return {
-            "diff": full_diff,
-            "metadata": {
-                "author": author,
-                "title": title
+    # 1. Try GitHub API (Reliable in CI)
+    if token and pr_number and repo_name:
+        try:
+            logger.info(f"Attempting to fetch diff via GitHub API for {repo_name} PR #{pr_number}")
+            url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}"
+            # Standard GitHub Diff header
+            headers = {
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github.diff"
             }
-        }
+            response = requests.get(url, headers=headers, timeout=20)
+            logger.info(f"GitHub API Response Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                full_diff = response.text
+                if full_diff.strip():
+                    logger.info(f"Successfully fetched diff via API ({len(full_diff)} chars)")
+                    logger.info(f"Diff preview: {full_diff[:100]}...")
+                else:
+                    logger.warning("API returned 200 OK but the diff content is empty!")
+            else:
+                logger.warning(f"API Diff failed: {response.status_code} - {response.text[:200]}")
 
-    except Exception as exc:
-        logger.error(f"Error fetching diff: {exc}")
+        except Exception as e:
+            logger.warning(f"Error calling GitHub API: {e}")
+
+    # 2. Fallback to Local Git if API failed or not applicable
+    if not full_diff:
+        try:
+            base_ref = os.environ.get("GITHUB_BASE_REF", "main")
+            head_ref = os.environ.get("GITHUB_HEAD_REF", "HEAD")
+            
+            logger.info(f"--- Git Diff Fallback Diagnostics ---")
+            # Ensure base branch is fetched
+            subprocess.run(["git", "fetch", "origin", base_ref], capture_output=True)
+            
+            diff_cmds = [
+                ["git", "diff", f"origin/{base_ref}...{head_ref}"],
+                ["git", "diff", f"origin/{base_ref}...HEAD"],
+                ["git", "diff", "HEAD^..HEAD"],
+            ]
+            
+            for cmd in diff_cmds:
+                result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+                if result.returncode == 0 and result.stdout.strip():
+                    full_diff = result.stdout
+                    logger.info(f"Success! Found diff using {' '.join(cmd)}")
+                    break
+        except Exception as exc:
+            logger.error(f"Git fallback failed: {exc}")
+
+    if not full_diff:
+        logger.error("Failed to acquire diff through all methods.")
         return {"diff": "", "metadata": {}}
+
+    if len(full_diff) > MAX_DIFF_CHARS:
+        full_diff = full_diff[:MAX_DIFF_CHARS]
+
+    return {
+        "diff": full_diff,
+        "metadata": {
+            "author": author,
+            "title": title
+        }
+    }
+

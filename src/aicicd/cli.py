@@ -68,8 +68,11 @@ def handle_fetch(args) -> int:
     diff_path.write_text(data.get("diff") or "", encoding="utf-8")
     meta_path.write_text(json.dumps(data.get("metadata", {}), indent=2, ensure_ascii=False), encoding="utf-8")
     
-    print(f"Fetched diff to {diff_path} and metadata to {meta_path}")
+    diff_len = len(data.get("diff") or "")
+    print(f"Fetched diff to {diff_path} (Size: {diff_len} bytes)")
+    print(f"Fetched metadata to {meta_path}")
     return 0
+
 
 def handle_publish(args) -> int:
     content = read_file(args.file)
