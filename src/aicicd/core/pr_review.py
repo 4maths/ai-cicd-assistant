@@ -86,11 +86,11 @@ def normalize_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
 
 from aicicd.utils.chunking import chunk_diff
 
-def run_pr_review(diff_text: str, provider: str = "fpt", paths_config_path: str = "config/security_paths.yml") -> PRReviewResult:
+def run_pr_review(diff_text: str, provider: str = "groq", paths_config_path: str = "config/security_paths.yml") -> PRReviewResult:
     result = PRReviewResult(
         tool=ToolName.PR_REVIEW,
         decision=Decision.APPROVE,
-        summary="Phân tích Pull Request (Self-hosted FPT LLM)",
+        summary="Phân tích Pull Request (Groq Intelligence)",
     )
 
     if not diff_text or not diff_text.strip():

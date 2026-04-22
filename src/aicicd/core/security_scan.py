@@ -45,11 +45,11 @@ Code Diff:
 from aicicd.utils.chunking import chunk_diff
 from aicicd.utils.regex_scanner import RegexScanner
 
-def run_security_scan(diff_text: str, provider: str = "fpt", prompt_path: Optional[str] = None, paths_path: str = "config/security_paths.yml") -> SecurityScanResult:
+def run_security_scan(diff_text: str, provider: str = "groq", prompt_path: Optional[str] = None, paths_path: str = "config/security_paths.yml") -> SecurityScanResult:
     result = SecurityScanResult(
         tool=ToolName.SECURITY_SCAN,
         decision=Decision.APPROVE,
-        summary="Phân tích bảo mật mã nguồn (Self-hosted FPT LLM + Regex Scanner)",
+        summary="Phân tích bảo mật mã nguồn (Groq Intelligence + Regex Scanner)",
     )
     
     if not diff_text or not diff_text.strip():
