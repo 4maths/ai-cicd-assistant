@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from github import Github, GithubException
 from aicicd.integrations.base import PublisherInterface
 from aicicd.config.settings import settings

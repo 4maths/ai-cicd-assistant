@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 import gitlab
 from gitlab.exceptions import GitlabError
 from aicicd.integrations.base import PublisherInterface

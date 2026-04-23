@@ -2,7 +2,7 @@ import logging
 import requests
 import os
 import subprocess
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from aicicd.integrations.base import SCMInterface
 from aicicd.config.settings import settings
 
