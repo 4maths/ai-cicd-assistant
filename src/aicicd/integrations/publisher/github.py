@@ -1,17 +1,26 @@
 import logging
 from github import Github, GithubException
+from aicicd.integrations.base import PublisherInterface
+from aicicd.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-def post_pr_comment(repo_name: str, pr_number: int, token: str, body: str) -> bool:
-    """Posts a Markdown comment to a Github Pull Request."""
-    try:
-        gh = Github(token)
-        repo = gh.get_repo(repo_name)
-        pr = repo.get_pull(pr_number)
-        pr.create_issue_comment(body)
-        logger.info(f"Successfully posted comment to PR #{pr_number}.")
-        return True
-    except GithubException as exc:
-        logger.error(f"Error posting comment to Github PR: {exc}")
-        return False
+class GitHubPublisher(PublisherInterface):
+    """GitHub implementation of PublisherInterface."""
+    
+    def __init__(self, token: Optional[str] = None):
+        self.token = token or settings.GITHUB_TOKEN
+
+    def publish_comment(self, repo: str, pr_id: int, body: str) -> bool:
+        if not self.token:
+            logger.error("GitHub token missing.")
+            return False
+        try:
+            gh = Github(self.token)
+            gh_repo = gh.get_repo(repo)
+            pr = gh_repo.get_pull(pr_id)
+            pr.create_issue_comment(body)
+            return True
+        except GithubException as e:
+            logger.error(f"Failed to post GitHub comment: {e}")
+            return False

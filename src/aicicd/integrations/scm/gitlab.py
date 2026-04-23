@@ -1,50 +1,39 @@
 import logging
 import subprocess
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from aicicd.integrations.base import SCMInterface
+from aicicd.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-MAX_DIFF_CHARS = 10000
+class GitLabSCM(SCMInterface):
+    """GitLab implementation of SCMInterface using environment variables and git."""
 
-def get_mr_diff(repo_name: str, mr_number: int, token: str = "", url: str = "https://gitlab.com") -> Dict[str, Any]:
-    """Gets the unified diff using local git diff and metadata from GitLab environment."""
-    try:
-        # Determine base and head for GitLab MR
-        # Default to main if not in a MR context
-        base_branch = os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
-        
-        logger.info(f"Fetching MR diff using git diff origin/{base_branch}...HEAD")
-        
-        # Try git diff
-        cmd = ["git", "diff", f"origin/{base_branch}...HEAD"]
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=True)
-        full_diff = result.stdout
+    def __init__(self, token: Optional[str] = None):
+        self.token = token or settings.GITLAB_TOKEN
 
-        if not full_diff:
-            logger.info("Empty diff with origin, trying local branch diff")
-            cmd = ["git", "diff", base_branch]
-            result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=True)
-            full_diff = result.stdout
+    def get_pull_request_diff(self, repo: str, pr_id: int) -> Dict[str, Any]:
+        full_diff = ""
+        try:
+            base_branch = os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
+            # Try git diff against origin
+            res = subprocess.run(["git", "diff", f"origin/{base_branch}...HEAD"], capture_output=True, text=True)
+            if res.returncode == 0:
+                full_diff = res.stdout
+            
+            if not full_diff:
+                res = subprocess.run(["git", "diff", base_branch], capture_output=True, text=True)
+                full_diff = res.stdout
 
-        if len(full_diff) > MAX_DIFF_CHARS:
-            logger.info(f"Diff too large, truncating to {MAX_DIFF_CHARS} chars.")
-            full_diff = full_diff[:MAX_DIFF_CHARS]
+            author = os.environ.get("GITLAB_USER_LOGIN", "unknown")
+            title = os.environ.get("CI_MERGE_REQUEST_TITLE", f"MR !{pr_id}" if pr_id else "Local Changes")
 
-        # Get metadata from GitLab CI variables
-        author = os.environ.get("GITLAB_USER_LOGIN", "unknown")
-        title = os.environ.get("CI_MERGE_REQUEST_TITLE", f"MR !{mr_number}" if mr_number else "Local Changes")
-
-        return {
-            "diff": full_diff,
-            "metadata": {
-                "author": author,
-                "title": title
+            return {
+                "diff": full_diff[:settings.MAX_DIFF_CHARS] if full_diff else "",
+                "metadata": {"author": author, "title": title, "source": "GitLab"}
             }
-        }
-
-    except Exception as exc:
-        logger.error(f"Error fetching MR diff using git: {exc}")
-        return {"diff": "", "metadata": {}}
-
-
+        except Exception as e:
+            logger.error(f"GitLab diff error: {e}")
+            return {"diff": "", "metadata": {}}
+        

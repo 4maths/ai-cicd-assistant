@@ -1,9 +1,11 @@
-import logging
-import sys
+from aicicd.integrations.base import PublisherInterface
 
-logger = logging.getLogger(__name__)
-
-def publish_to_stdout(body: str) -> bool:
-    """Prints the formatted result to standard output."""
-    print(body)
-    return True
+class StdoutPublisher(PublisherInterface):
+    """Fallback publisher that prints to standard output."""
+    
+    def publish_comment(self, repo: str, pr_id: int, body: str) -> bool:
+        print("-" * 40)
+        print(f"COMMENT ON {repo} PR #{pr_id}:")
+        print(body)
+        print("-" * 40)
+        return True
