@@ -25,3 +25,8 @@ test = [
 
 [project.scripts]
 aicicd = "aicicd.cli:main"
+
+[tool.setuptools]
+packages = ["aicicd"]
+package-dir = {"" = "src"}
+include-package-data = true
