@@ -40,11 +40,15 @@ class CLI:
         review = subparsers.add_parser("review")
         review.add_argument("--input", required=True)
         review.add_argument("--provider")
+        review.add_argument("--format", default="markdown", choices=["markdown", "json"])
+        review.add_argument("--output", help="File to save the report")
 
         # SEC: Security Scan
         sec = subparsers.add_parser("security")
         sec.add_argument("--input", required=True)
         sec.add_argument("--provider")
+        sec.add_argument("--format", default="markdown", choices=["markdown", "json"])
+        sec.add_argument("--output", help="File to save the report")
 
         # LOG: Log Analysis
         log = subparsers.add_parser("log")
@@ -74,16 +78,16 @@ class CLI:
                 self.handle_publish(args)
             elif args.command == "review":
                 result = ReviewService(args.provider).review(self._read(args.input))
-                self._output(result)
+                self._output(result, args)
             elif args.command == "security":
                 result = SecurityService(args.provider).scan(self._read(args.input))
-                self._output(result)
+                self._output(result, args)
             elif args.command == "log":
                 result = LogAnalysisService(args.provider).analyze(self._read(args.file))
-                self._output(result)
+                self._output(result, args)
             elif args.command == "guard":
                 result = DeployGuardService(args.provider).check(args.url)
-                self._output(result)
+                self._output(result, args)
         except Exception as e:
             logger.error(f"Execution failed: {e}")
             sys.exit(1)
@@ -137,9 +141,26 @@ class CLI:
     def _read(self, path) -> str:
         return Path(path).read_text(encoding="utf-8")
 
-    def _output(self, result):
+    def _output(self, result, args):
         from aicicd.formatters.markdown_formatter import format_markdown
-        print(format_markdown(result))
+        
+        # Determine format (default to markdown)
+        fmt = getattr(args, "format", "markdown")
+        if fmt == "json":
+            # Assuming result has a to_dict() or we can serialize it
+            # For now, let's keep it simple
+            content = json.dumps(result.__dict__, default=lambda o: str(o), indent=2)
+        else:
+            content = format_markdown(result)
+            
+        # Write to file or print
+        output_path = getattr(args, "output", None)
+        if output_path:
+            Path(output_path).write_text(content, encoding="utf-8")
+            logger.info(f"Report saved to {output_path}")
+        else:
+            print(content)
+            
         sys.exit(result.get_exit_code())
 
 def main():
