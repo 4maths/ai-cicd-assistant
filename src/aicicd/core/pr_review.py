@@ -10,7 +10,14 @@ from aicicd.utils.json_tools import parse_json_safely
 logger = logging.getLogger(__name__)
 
 
+from aicicd.utils.prompt_loader import load_prompt
+
 def build_review_prompt(diff: str) -> str:
+    prompt = load_prompt("pr_review_prompt", {"diff": diff})
+    if prompt:
+        return prompt
+        
+    # Fallback
     return f"""Senior Developer Review. Analyze diff and return ONLY JSON.
 Minimize length. Only report critical issues.
 

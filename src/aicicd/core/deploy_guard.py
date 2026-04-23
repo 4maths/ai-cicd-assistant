@@ -15,25 +15,38 @@ logger = logging.getLogger(__name__)
 # Removed local parse_json_safely - using shared version
 
 
+from aicicd.utils.prompt_loader import load_prompt
+
 def build_deploy_prompt(url: str, status_code: int, headers: str, body: str, prompt_template_path: Optional[str] = None) -> str:
-    template = ""
+    # Special path override
     if prompt_template_path:
         path = Path(prompt_template_path)
         if path.exists():
             template = path.read_text(encoding="utf-8")
-            
-    if not template:
-        template = """Smoke test result:
-URL: {{url}}
-Status: {{status_code}}
-Body: {{body}}
+            return template.replace("{{url}}", url)\
+                           .replace("{{status_code}}", str(status_code))\
+                           .replace("{{headers}}", headers)\
+                           .replace("{{body}}", body)
 
-Return ONLY JSON: {"summary": "..", "status": "HEALTHY|DEGRADED|UNHEALTHY", "decision": "APPROVE|WARN|BLOCK", "message": "..", "checks": []}
+    # Default from prompt_loader
+    prompt = load_prompt("deploy_guard_prompt", {
+        "url": url,
+        "status_code": status_code,
+        "headers": headers,
+        "body": body
+    })
+    
+    if prompt:
+        return prompt
+        
+    # Fallback
+    return f"""Smoke test result:
+URL: {url}
+Status: {status_code}
+Body: {body}
+
+Return ONLY JSON: {{"summary": "..", "status": "HEALTHY|DEGRADED|UNHEALTHY", "decision": "APPROVE|WARN|BLOCK", "message": "..", "checks": []}}
 """
-    return template.replace("{{url}}", url)\
-                   .replace("{{status_code}}", str(status_code))\
-                   .replace("{{headers}}", headers)\
-                   .replace("{{body}}", body)
 
 
 def run_deploy_guard(url: str, provider: str = "groq", prompt_path: Optional[str] = None, timeout: int = 10) -> DeployGuardResult:

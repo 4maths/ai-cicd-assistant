@@ -20,26 +20,32 @@ logger = logging.getLogger(__name__)
 # Removed local parse_json_safely - now using shared version from json_tools
 
 
+from aicicd.utils.prompt_loader import load_prompt
+
 def build_security_prompt(diff: str, prompt_template_path: Optional[str] = None) -> str:
-    template = ""
+    # If a specific path is provided, we use it for backward compatibility or special cases
     if prompt_template_path:
         path = Path(prompt_template_path)
         if path.exists():
             template = path.read_text(encoding="utf-8")
+            return template.replace("{{diff}}", diff)
             
-    if not template:
-        # Fallback template if file missing - Optimized for limited tokens
-        template = """Analyze Code Diff for security vulnerabilities (OWASP Top 10).
+    # Default behavior: load from config/prompts/security_scan_prompt.md
+    prompt = load_prompt("security_scan_prompt", {"diff": diff})
+    
+    if not prompt:
+        # Fallback template if file missing
+        prompt = f"""Analyze Code Diff for security vulnerabilities (OWASP Top 10).
 Return ONLY JSON:
-{
+{{
   "summary": "...",
-  "findings": [{"id": "..", "title": "..", "description": "..", "severity": "HIGH|MEDIUM|LOW", "file": "..", "suggestion": ".."}],
+  "findings": [{{"id": "..", "title": "..", "description": "..", "severity": "HIGH|MEDIUM|LOW", "file": "..", "suggestion": ".."}}],
   "decision": "BLOCK|WARN|APPROVE"
-}
+}}
 Code Diff:
-{{diff}}
+{diff}
 """
-    return template.replace("{{diff}}", diff)
+    return prompt
 
 
 from aicicd.utils.chunking import chunk_diff
