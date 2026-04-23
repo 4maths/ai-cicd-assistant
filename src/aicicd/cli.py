@@ -34,6 +34,7 @@ class CLI:
         fetch.add_argument("--source", choices=["github", "gitlab", "local"], required=True)
         fetch.add_argument("--repo", help="owner/repo")
         fetch.add_argument("--pr", type=int, help="PR number")
+        fetch.add_argument("--out-dir", default=".", help="Directory to save diff.txt and metadata.json")
 
         # REVIEW: AI Code Review
         review = subparsers.add_parser("review")
@@ -91,9 +92,18 @@ class CLI:
         """Unified fetch routing."""
         scm = self._get_scm(args.source)
         data = scm.get_pull_request_diff(args.repo, args.pr)
-        Path("diff.txt").write_text(data["diff"], encoding="utf-8")
-        Path("metadata.json").write_text(json.dumps(data["metadata"]), encoding="utf-8")
-        logger.info(f"Data fetched successfully to diff.txt")
+        
+        # Determine output paths
+        out_dir = Path(args.out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        diff_path = out_dir / "diff.txt"
+        meta_path = out_dir / "metadata.json"
+        
+        diff_path.write_text(data.get("diff", ""), encoding="utf-8")
+        meta_path.write_text(json.dumps(data.get("metadata", {}), indent=2), encoding="utf-8")
+        
+        logger.info(f"Data fetched successfully to {out_dir}")
 
     def handle_publish(self, args):
         """Unified publish routing."""
